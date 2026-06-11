@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { startIntro } from "./intro.js";
+import { showMainMenu } from "./menu.js";
 
 // =======================
 // SCENA BASE
@@ -33,6 +35,8 @@ const INITIAL_GAME_SPEED = 0.25;
 const MAX_GAME_SPEED = 0.65;
 const SPEED_STEP = 0.06;
 const SCORE_PER_LEVEL = 300;
+
+let gameState = "intro";
 
 let gameSpeed = INITIAL_GAME_SPEED;
 let currentLevel = 1;
@@ -312,7 +316,7 @@ const trexBones = {};
 const trexRestPositions = {};
 const trexRestQuaternions = {};
 
-loader.load("/models/T-Rex.glb", (gltf) => {
+loader.load("/models/NewTRex.glb", (gltf) => {
   trex = gltf.scene;
   trex.scale.set(0.15, 0.15, 0.15);
   trex.position.set(0, 0.05, 0);
@@ -334,6 +338,7 @@ const LOCAL_X = new THREE.Vector3(1, 0, 0);
 const LOCAL_Y = new THREE.Vector3(0, 1, 0);
 const LOCAL_Z = new THREE.Vector3(0, 0, 1);
 const RUN_SPEED = 8.0;
+const TAIL_RUN_BASE_PITCH = -0.15;
 
 const LEG_MOTION = {
   R: {
@@ -422,21 +427,24 @@ function animateTrex() {
   const bodyWave = Math.sin(t * 2);
   const tailWave = Math.sin(t);
 
-  rotateBone("Body", LOCAL_X, -0.10 + bodyWave * 0.018);
-  rotateBone("Back", LOCAL_X, -0.06 + bodyWave * 0.012);
+  rotateBone("Body", LOCAL_X, -0.14 + bodyWave * 0.018);
+  rotateBone("Torso", LOCAL_X, 0.03 + bodyWave * 0.01);
+  rotateBone("Shoulders", LOCAL_X, -0.24 + bodyWave * 0.018);
+  rotateBone("Back", LOCAL_X, -0.08 + bodyWave * 0.012);
   rotateBone("Hips", LOCAL_X, bodyWave * 0.025);
 
   animateLeg("R", rightPhase);
   animateLeg("L", leftPhase);
 
-  rotateBone("Tail1", LOCAL_X, -0.18 + tailWave * 0.04);
+  rotateBone("Tail1", LOCAL_X, TAIL_RUN_BASE_PITCH + tailWave * 0.035);
   rotateBone("Tail2", LOCAL_X, 0.14 + Math.sin(t + 0.5) * 0.05);
   rotateBone("Tail3", LOCAL_X, 0.18 + Math.sin(t + 1.0) * 0.05);
+  rotateBone("Tail4", LOCAL_X, 0.10 + Math.sin(t + 1.5) * 0.04);
+  rotateBone("Tail5", LOCAL_X, 0.08 + Math.sin(t + 2.0) * 0.035);
 
-  rotateBone("Neck", LOCAL_X, 0.08 + Math.sin(t * 2 - 0.4) * 0.025);
-  rotateBone("Head", LOCAL_X, 0.12 + Math.sin(t * 2 - 0.6) * 0.035);
+  rotateBone("Neck", LOCAL_X, 0.06 + Math.sin(t * 2 - 0.4) * 0.025);
+  rotateBone("Head", LOCAL_X, 0.14 + Math.sin(t * 2 - 0.6) * 0.035);
 }
-
 //HUD
 
 const hud = document.createElement("div");
@@ -532,7 +540,7 @@ function spawnObstacle() {
 
     obstacle.position.set(laneX, 0, -90);
     obstacle.scale.set(1, 1, 1);
-    obstacle.rotation.y = Math.random() * Math.PI * 2;
+    obstacle.rotation.y = 0;
 
     enableShadows(obstacle);
 
@@ -663,7 +671,7 @@ window.addEventListener("resize", () => {
 function animate() {
   requestAnimationFrame(animate);
 
-  if (!isGameOver) {
+  if (gameState === "playing" && !isGameOver) {
     score += gameSpeed;
     updateDifficulty();
 
@@ -686,7 +694,7 @@ function animate() {
     obstacleSpawnTimer++;
     boneSpawnTimer++;
 
-    const obstacleSpawnLimit = Math.max(45, 90 - currentLevel * 4);
+    const obstacleSpawnLimit = Math.max(25, 70 - currentLevel * 5);
 
     if (obstacleSpawnTimer > obstacleSpawnLimit) {
       if (currentLevel >= 2 && Math.random() < 0.25) {
@@ -731,5 +739,20 @@ function animate() {
 
   renderer.render(scene, camera);
 }
+
+startIntro(() => {
+  showMainMenu({
+    onStart: () => {
+      gameState = "playing";
+    },
+    onTutorial: () => {
+      alert("Controls:\nA / ← = move left\nD / → = move right\nW / ↑ / Space = jump\nAvoid obstacles and collect bones.");
+    },
+    onStatistics: () => {
+      const bestScore = localStorage.getItem("dinosEscapeBestScore") || 0;
+      alert(`Best score: ${bestScore}`);
+    },
+  });
+});
 
 animate();

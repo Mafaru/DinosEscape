@@ -64,7 +64,7 @@ const trexBones = {};
 const trexRestPositions = {};
 const trexRestQuaternions = {};
 
-loader.load("/models/T-Rex.glb", (gltf) => {
+loader.load("/models/NewTRex.glb", (gltf) => {
   trex = gltf.scene;
   trex.scale.set(0.15, 0.15, 0.15);
   trex.position.set(0, 0.05, 0);
@@ -87,7 +87,6 @@ const LOCAL_Y = new THREE.Vector3(0, 1, 0);
 const LOCAL_Z = new THREE.Vector3(0, 0, 1);
 const RUN_SPEED = 8.0;
 const TAIL_RUN_BASE_PITCH = -0.15;
-const TAIL_CENTER_Z = 0.10;
 
 const LEG_MOTION = {
   R: {
@@ -115,19 +114,6 @@ function rotateBone(name, axis, angle) {
 
   const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
   bone.quaternion.copy(rest).multiply(q);
-}
-
-function rotateBoneAxes(name, rotations) {
-  const bone = trexBones[name];
-  const rest = trexRestQuaternions[name];
-  if (!bone || !rest) return;
-
-  bone.quaternion.copy(rest);
-
-  for (const { axis, angle } of rotations) {
-    const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
-    bone.quaternion.multiply(q);
-  }
 }
 
 function moveBoneSagittal(name, deltaY = 0, deltaZ = 0) {
@@ -198,10 +184,7 @@ function animateTrex() {
   animateLeg("R", rightPhase);
   animateLeg("L", leftPhase);
 
-  rotateBoneAxes("Tail1", [
-    { axis: LOCAL_X, angle: TAIL_RUN_BASE_PITCH + tailWave * 0.035 },
-    { axis: LOCAL_Z, angle: TAIL_CENTER_Z },
-  ]);
+  rotateBone("Tail1", LOCAL_X, TAIL_RUN_BASE_PITCH + tailWave * 0.035);
   rotateBone("Tail2", LOCAL_X, 0.14 + Math.sin(t + 0.5) * 0.05);
   rotateBone("Tail3", LOCAL_X, 0.18 + Math.sin(t + 1.0) * 0.05);
   rotateBone("Tail4", LOCAL_X, 0.10 + Math.sin(t + 1.5) * 0.04);
