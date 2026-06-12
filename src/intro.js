@@ -14,6 +14,9 @@ export function startIntro(onFinish) {
   let currentParagraph = null;
   let isTyping = false;
 
+  const typingSound = new Audio("/audio/typing.mp3");
+  typingSound.volume = 0.25;
+
   const overlay = document.createElement("div");
   overlay.style.position = "fixed";
   overlay.style.inset = "0";
@@ -66,8 +69,20 @@ export function startIntro(onFinish) {
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
+  function playTypingSound() {
+    typingSound.pause();
+    typingSound.currentTime = 0;
+    typingSound.play().catch(() => {});
+  }
+
+  function stopTypingSound() {
+    typingSound.pause();
+    typingSound.currentTime = 0;
+  }
+
   function finishIntro() {
     clearInterval(typingInterval);
+    stopTypingSound();
     window.removeEventListener("keydown", handleKey);
     overlay.remove();
     onFinish();
@@ -94,6 +109,7 @@ export function startIntro(onFinish) {
     isTyping = true;
     charIndex = 0;
     createNewParagraph();
+    playTypingSound();
 
     clearInterval(typingInterval);
 
@@ -104,6 +120,7 @@ export function startIntro(onFinish) {
       if (charIndex >= lines[lineIndex].length) {
         clearInterval(typingInterval);
         isTyping = false;
+        stopTypingSound();
       }
     }, 32);
   }
@@ -113,6 +130,7 @@ export function startIntro(onFinish) {
     currentParagraph.textContent = lines[lineIndex];
     charIndex = lines[lineIndex].length;
     isTyping = false;
+    stopTypingSound();
   }
 
   function nextLine() {
