@@ -59,6 +59,8 @@ let jumpVelocity = 0;
 const gravity = 0.018;
 const jumpStrength = 0.32;
 const jumpCooldown = 500;
+let lastJumpObstacleScore = -9999;
+const canSpawnJumpObstacle = score - lastJumpObstacleScore > 350;
 const groundY = 0.05;
 
 // =======================
@@ -445,6 +447,8 @@ function animateTrex() {
   rotateBone("Neck", LOCAL_X, 0.06 + Math.sin(t * 2 - 0.4) * 0.025);
   rotateBone("Head", LOCAL_X, 0.14 + Math.sin(t * 2 - 0.6) * 0.035);
 }
+
+
 //HUD
 
 const hud = document.createElement("div");
@@ -482,6 +486,89 @@ function updateDifficulty() {
   }
 }
 
+function resetGame() {
+  score = 0;
+  lives = 3;
+  isGameOver = false;
+  gameSpeed = INITIAL_GAME_SPEED;
+  currentLevel = 1;
+
+  currentLane = 1;
+  targetX = lanes[currentLane];
+
+  isJumping = false;
+  canJump = true;
+  jumpVelocity = 0;
+
+  obstacleSpawnTimer = 0;
+  boneSpawnTimer = 0;
+
+  if (trex) {
+    trex.position.set(0, groundY, 0);
+  }
+
+  for (let i = movingObjects.length - 1; i >= 0; i--) {
+    scene.remove(movingObjects[i].mesh);
+    movingObjects.splice(i, 1);
+  }
+
+  updateHud();
+  gameState = "playing";
+}
+
+
+function showDeathScreen() {
+  const bestScore = Number(localStorage.getItem("dinosEscapeBestScore") || 0);
+
+  if (score > bestScore) {
+    localStorage.setItem("dinosEscapeBestScore", Math.floor(score));
+  }
+
+  const overlay = document.createElement("div");
+  overlay.id = "death-screen";
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.background = "rgba(0,0,0,0.82)";
+  overlay.style.zIndex = "9997";
+  overlay.style.display = "flex";
+  overlay.style.flexDirection = "column";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.fontFamily = "Consolas, 'Courier New', monospace";
+  overlay.style.color = "#f0c07a";
+
+  const title = document.createElement("h1");
+  title.textContent = "SEI MORTO";
+  title.style.fontSize = "76px";
+  title.style.letterSpacing = "6px";
+  title.style.margin = "0 0 20px";
+  title.style.color = "#a84b22";
+
+  const scoreText = document.createElement("div");
+  scoreText.textContent = `Score: ${Math.floor(score)}`;
+  scoreText.style.fontSize = "28px";
+  scoreText.style.marginBottom = "36px";
+
+  const retry = document.createElement("button");
+  retry.textContent = "RIPROVA";
+  retry.style.padding = "16px 42px";
+  retry.style.border = "1px solid #d8a35d";
+  retry.style.background = "rgba(18, 8, 3, 0.85)";
+  retry.style.color = "#f0c07a";
+  retry.style.fontSize = "22px";
+  retry.style.cursor = "pointer";
+  retry.style.letterSpacing = "3px";
+
+  retry.onclick = () => {
+    overlay.remove();
+    resetGame();
+  };
+
+  overlay.appendChild(title);
+  overlay.appendChild(scoreText);
+  overlay.appendChild(retry);
+  document.body.appendChild(overlay);
+}
 // =======================
 // INPUT
 // =======================
@@ -500,7 +587,10 @@ window.addEventListener("keydown", (event) => {
   }
 
   if (key === "r" && isGameOver) {
-    window.location.reload();
+    const deathOverlay = document.getElementById("death-screen");
+    if (deathOverlay) deathOverlay.remove();
+
+    resetGame();
   }
 
   if (
@@ -552,6 +642,14 @@ function spawnObstacle() {
       hit: false,
     });
   });
+}
+
+const hitSound = new Audio("/audio/hit.mp3");
+hitSound.volume = 0.95;
+
+function playHitSound() {
+  hitSound.currentTime = 0;
+  hitSound.play().catch(() => {});
 }
 
 function spawnConeWall() {
@@ -619,12 +717,14 @@ function updateMovingObjects() {
     if (trex && !obj.hit && checkCollision(trex, obj.mesh, 1.3)) {
       obj.hit = true;
 
-      if (obj.type === "obstacle") {
+      if (obj.type === "obstacle" || obj.type === "jumpObstacle") {
         lives--;
+        playHitSound();
       }
 
       if (obj.type === "jumpObstacle" && !isJumping) {
         lives--;
+        playHitSound();
       }
 
       if (obj.type === "jumpObstacle" && isJumping) {
@@ -641,7 +741,7 @@ function updateMovingObjects() {
 
       if (lives <= 0) {
         isGameOver = true;
-        hud.innerHTML = `GAME OVER<br>Score: ${Math.floor(score)}<br>Premi R per ricominciare`;
+        showDeathScreen();
       }
 
       continue;
@@ -695,16 +795,18 @@ function animate() {
     boneSpawnTimer++;
 
     const obstacleSpawnLimit = Math.max(25, 70 - currentLevel * 5);
+    const canSpawnJumpObstacle = score - lastJumpObstacleScore > 350;
 
     if (obstacleSpawnTimer > obstacleSpawnLimit) {
-      if (currentLevel >= 2 && Math.random() < 0.25) {
+      if (currentLevel >= 2 && Math.random() < 0.25 && canSpawnJumpObstacle) {
         spawnConeWall();
+        lastJumpObstacleScore = score;
       } else {
         spawnObstacle();
-    }
+      }
 
-  obstacleSpawnTimer = 0;
-}
+      obstacleSpawnTimer = 0;
+    }
 
     if (boneSpawnTimer > 600) {
       spawnBone();
@@ -740,17 +842,11 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+
 startIntro(() => {
   showMainMenu({
     onStart: () => {
       gameState = "playing";
-    },
-    onTutorial: () => {
-      alert("Controls:\nA / ← = move left\nD / → = move right\nW / ↑ / Space = jump\nAvoid obstacles and collect bones.");
-    },
-    onStatistics: () => {
-      const bestScore = localStorage.getItem("dinosEscapeBestScore") || 0;
-      alert(`Best score: ${bestScore}`);
     },
   });
 });
