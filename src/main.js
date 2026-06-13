@@ -134,28 +134,83 @@ scene.add(stars);
 // TEXTURES AND MATERIALS
 // =======================
 
+// =======================
+// TEXTURES AND MATERIALS
+// =======================
+
 const textureLoader = new THREE.TextureLoader();
 
-const groundTexture = textureLoader.load("/textures/pavement.jpg");
+// STRADA - sampietrini
+const groundTexture = textureLoader.load(
+  "/textures/brick_pavement_02_diff_4k.png"
+);
+
+const groundNormalTexture = textureLoader.load(
+  "/textures/brick_pavement_02_nor_gl_4k.png"
+);
+
+const groundRoughnessTexture = textureLoader.load(
+  "/textures/brick_pavement_02_rough_4k.png"
+);
+
 groundTexture.colorSpace = THREE.SRGBColorSpace;
+
 groundTexture.wrapS = THREE.RepeatWrapping;
 groundTexture.wrapT = THREE.RepeatWrapping;
-groundTexture.repeat.set(8, 40);
 
-const grassTexture = textureLoader.load("/textures/grass.png");
-grassTexture.colorSpace = THREE.SRGBColorSpace;
-grassTexture.wrapS = THREE.RepeatWrapping;
-grassTexture.wrapT = THREE.RepeatWrapping;
-grassTexture.repeat.set(20, 40);
+groundNormalTexture.wrapS = THREE.RepeatWrapping;
+groundNormalTexture.wrapT = THREE.RepeatWrapping;
+
+groundRoughnessTexture.wrapS = THREE.RepeatWrapping;
+groundRoughnessTexture.wrapT = THREE.RepeatWrapping;
+
+groundTexture.repeat.set(8, 40);
+groundNormalTexture.repeat.set(8, 40);
+groundRoughnessTexture.repeat.set(8, 40);
 
 const groundMaterial = new THREE.MeshStandardMaterial({
   map: groundTexture,
-  roughness: 0.9,
+  normalMap: groundNormalTexture,
+  roughnessMap: groundRoughnessTexture,
+  roughness: 1.0,
+  normalScale: new THREE.Vector2(0.8, 0.8),
 });
+
+// PRATO LATERALE
+const grassTexture = textureLoader.load(
+  "/textures/Grass005_2K-JPG_Color.jpg"
+);
+
+const grassNormalTexture = textureLoader.load(
+  "/textures/Grass005_2K-JPG_NormalGL.jpg"
+);
+
+const grassRoughnessTexture = textureLoader.load(
+  "/textures/Grass005_2K-JPG_Roughness.jpg"
+);
+
+grassTexture.colorSpace = THREE.SRGBColorSpace;
+
+grassTexture.wrapS = THREE.RepeatWrapping;
+grassTexture.wrapT = THREE.RepeatWrapping;
+
+grassNormalTexture.wrapS = THREE.RepeatWrapping;
+grassNormalTexture.wrapT = THREE.RepeatWrapping;
+
+grassRoughnessTexture.wrapS = THREE.RepeatWrapping;
+grassRoughnessTexture.wrapT = THREE.RepeatWrapping;
+
+grassTexture.repeat.set(20, 40);
+grassNormalTexture.repeat.set(20, 40);
+grassRoughnessTexture.repeat.set(20, 40);
 
 const sideMaterial = new THREE.MeshStandardMaterial({
   map: grassTexture,
-  roughness: 0.95,
+  normalMap: grassNormalTexture,
+  roughnessMap: grassRoughnessTexture,
+
+  roughness: 1.0,
+  normalScale: new THREE.Vector2(0.5, 0.5),
 });
 
 // =======================
@@ -329,6 +384,8 @@ function checkCollision(a, b, distance = 1.2) {
 // =======================
 // GROUND
 // =======================
+
+
 
 function createGroundPiece(z) {
   const group = new THREE.Group();
@@ -1179,7 +1236,7 @@ function animate() {
     obstacleSpawnTimer++;
     boneSpawnTimer++;
 
-    const obstacleSpawnLimit = Math.max(25, 70 - currentLevel * 5);
+    const obstacleSpawnLimit = Math.max(18, 60 - currentLevel * 6);
     const canSpawnJumpObstacle = score - lastJumpObstacleScore > 350;
 
     if (obstacleSpawnTimer > obstacleSpawnLimit) {
