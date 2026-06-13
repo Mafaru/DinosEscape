@@ -719,6 +719,8 @@ function resetGame() {
 
   updateHud();
   gameState = "playing";
+  stopGameMusic();
+  playGameMusic();
 }
 
 function showPauseScreen() {
@@ -786,6 +788,7 @@ function pauseGame() {
   if (gameState !== "playing" || isGameOver) return;
 
   gameState = "paused";
+  pauseGameMusic();
   showPauseScreen();
 }
 
@@ -794,10 +797,12 @@ function resumeGame() {
 
   hidePauseScreen();
   gameState = "playing";
+  playGameMusic();
 }
 
 function openMainMenu() {
   gameState = "menu";
+  stopGameMusic();
 
   showMainMenu({
     onStart: resetGame,
@@ -824,6 +829,8 @@ function togglePause() {
 
 
 function showDeathScreen() {
+  stopGameMusic();
+
   const bestScore = Number(localStorage.getItem("dinosEscapeBestScore") || 0);
 
   if (score > bestScore) {
@@ -974,9 +981,34 @@ function spawnObstacle() {
 const hitSound = new Audio("/audio/hit.mp3");
 hitSound.volume = 0.95;
 
+const bonePickupSound = new Audio("/audio/bone-pickup.mp3");
+bonePickupSound.volume = 0.65;
+
+const gameMusic = new Audio("/audio/gameOn.mp3");
+gameMusic.loop = true;
+gameMusic.volume = 0.35;
+
+function playGameMusic() {
+  gameMusic.play().catch(() => {});
+}
+
+function pauseGameMusic() {
+  gameMusic.pause();
+}
+
+function stopGameMusic() {
+  gameMusic.pause();
+  gameMusic.currentTime = 0;
+}
+
 function playHitSound() {
   hitSound.currentTime = 0;
   hitSound.play().catch(() => {});
+}
+
+function playBonePickupSound() {
+  bonePickupSound.currentTime = 0;
+  bonePickupSound.play().catch(() => {});
 }
 
 function spawnConeWall() {
@@ -1059,6 +1091,7 @@ function updateMovingObjects() {
       if (obj.type === "bone") {
         lives = Math.min(lives + 1, 3);
         score += 100;
+        playBonePickupSound();
       } else {
         lives--;
         playHitSound();

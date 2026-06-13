@@ -1,14 +1,4 @@
-const menuMusic = new Audio("/audio/gameOn.mp3");
-menuMusic.loop = true;
-menuMusic.volume = 0.35;
-
-function playMenuMusic() {
-  menuMusic.play().catch(() => {});
-}
-
 export function showMainMenu({ onStart, onTutorial, onStatistics }) {
-  playMenuMusic();
-
   const overlay = document.createElement("div");
   overlay.style.position = "fixed";
   overlay.style.inset = "0";
