@@ -26,7 +26,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 
 document.body.style.margin = "0";
 document.body.appendChild(renderer.domElement);
@@ -165,6 +165,8 @@ const sideMaterial = new THREE.MeshStandardMaterial({
 const worldObjects = [];
 const groundPieces = [];
 const movingObjects = [];
+const streetLightAnchors = [];
+const activeStreetLights = [];
 
 const streetLightPoolTexture = createStreetLightPoolTexture();
 const streetLightPoolGeometry = new THREE.PlaneGeometry(6.5, 6.5);
@@ -180,12 +182,19 @@ const streetLightBulbMaterial = new THREE.MeshBasicMaterial({
   color: 0xffddaa,
   fog: false,
 });
+const STREET_LIGHT_BULB_Y = 3.32;
+const STREET_LIGHT_ACTIVE_COUNT = 8;
+const STREET_LIGHT_ACTIVE_MIN_Z = -55;
+const STREET_LIGHT_ACTIVE_MAX_Z = 25;
+const SCENERY_START_Z = -10;
+const SCENERY_END_Z = -215;
 
 // =======================
 // UTILITY
 // =======================
 
 const loader = new GLTFLoader();
+const modelCache = new Map();
 
 function createStreetLightPoolTexture() {
   const size = 128;
@@ -224,26 +233,93 @@ function enableShadows(model) {
   });
 }
 
+function loadModel(path) {
+  if (!modelCache.has(path)) {
+    modelCache.set(
+      path,
+      new Promise((resolve, reject) => {
+        loader.load(
+          path,
+          (gltf) => resolve(gltf.scene),
+          undefined,
+          (error) => {
+            modelCache.delete(path);
+            reject(error);
+          }
+        );
+      })
+    );
+  }
+
+  return modelCache.get(path);
+}
+
+function cloneModel(model) {
+  return model.clone(true);
+}
+
+function makeLampPostGlow(model) {
+  model.updateWorldMatrix(true, true);
+  const modelBox = new THREE.Box3().setFromObject(model);
+  const modelHeight = modelBox.max.y - modelBox.min.y;
+
+  model.traverse((child) => {
+    if (!child.isMesh || !child.material) return;
+
+    const meshBox = new THREE.Box3().setFromObject(child);
+    const meshSize = meshBox.getSize(new THREE.Vector3());
+    const nearLampTop = meshBox.min.y > modelBox.min.y + modelHeight * 0.75;
+    const compactBulb =
+      Math.max(meshSize.x, meshSize.z) < modelHeight * 0.08 &&
+      meshSize.y < modelHeight * 0.08;
+
+    const materials = Array.isArray(child.material)
+      ? child.material
+      : [child.material];
+
+    const glowingMaterials = materials.map((material) => {
+      const color = material.color ?? new THREE.Color(0x000000);
+      const brightness = (color.r + color.g + color.b) / 3;
+
+      if (!nearLampTop || !compactBulb || brightness < 0.85) {
+        return material;
+      }
+
+      const glowingMaterial = material.clone();
+      glowingMaterial.color.set(0xffddaa);
+      glowingMaterial.emissive = new THREE.Color(0xffb366);
+      glowingMaterial.emissiveIntensity = 1.35;
+      glowingMaterial.needsUpdate = true;
+      return glowingMaterial;
+    });
+
+    child.material = Array.isArray(child.material)
+      ? glowingMaterials
+      : glowingMaterials[0];
+  });
+}
+
 function loadStaticModel(path, x, y, z, scale = 1, rotationY = 0) {
-  loader.load(
-    path,
-    (gltf) => {
-      const model = gltf.scene;
+  loadModel(path)
+    .then((source) => {
+      const model = cloneModel(source);
 
       model.position.set(x, y, z);
       model.scale.set(scale, scale, scale);
       model.rotation.y = rotationY;
 
+      if (path.includes("lamp post")) {
+        makeLampPostGlow(model);
+      }
+
       enableShadows(model);
 
       scene.add(model);
       worldObjects.push(model);
-    },
-    undefined,
-    (error) => {
+    })
+    .catch((error) => {
       console.error(`Errore caricamento modello ${path}:`, error);
-    }
-  );
+    });
 }
 
 function checkCollision(a, b, distance = 1.2) {
@@ -303,9 +379,11 @@ function addStreetLight(x, z) {
     2         // decadimento
   );
 
-  light.position.set(x, 3.4, z);
+  light.position.set(x, STREET_LIGHT_BULB_Y, z);
   light.intensity = 4.2;
   light.castShadow = false;
+  light.intensity = 0;
+  light.visible = false;
 
   scene.add(light);
   worldObjects.push(light);
@@ -316,7 +394,7 @@ function addStreetLight(x, z) {
     streetLightBulbMaterial
   );
 
-  bulb.position.set(x, 3.4, z);
+  bulb.position.set(x, STREET_LIGHT_BULB_Y, z);
 
   const lightPool = new THREE.Mesh(
     streetLightPoolGeometry,
@@ -329,10 +407,42 @@ function addStreetLight(x, z) {
   scene.add(lightPool);
   worldObjects.push(bulb);
   worldObjects.push(lightPool);
+  streetLightAnchors.push(bulb);
+}
+
+for (let i = 0; i < STREET_LIGHT_ACTIVE_COUNT; i++) {
+  const light = new THREE.PointLight(0xffb366, 4.2, 20, 2);
+  light.castShadow = false;
+  light.visible = false;
+  scene.add(light);
+  activeStreetLights.push(light);
+}
+
+function updateActiveStreetLights() {
+  const nearbyAnchors = streetLightAnchors
+    .filter(
+      (anchor) =>
+        anchor.position.z > STREET_LIGHT_ACTIVE_MIN_Z &&
+        anchor.position.z < STREET_LIGHT_ACTIVE_MAX_Z
+    )
+    .sort((a, b) => Math.abs(a.position.z - 4) - Math.abs(b.position.z - 4));
+
+  for (let i = 0; i < activeStreetLights.length; i++) {
+    const light = activeStreetLights[i];
+    const anchor = nearbyAnchors[i];
+
+    if (!anchor) {
+      light.visible = false;
+      continue;
+    }
+
+    light.visible = true;
+    light.position.copy(anchor.position);
+  }
 }
 
 // LAMPIONI
-for (let z = -10; z > -120; z -= 15) {
+for (let z = SCENERY_START_Z; z > SCENERY_END_Z; z -= 15) {
   loadStaticModel("/models/lamp post.glb", -6.2, 0, z, 0.2, 0);
   addStreetLight(-6.2, z);
 
@@ -349,7 +459,7 @@ const treeModels = [
 
 let treeIndex = 0;
 
-for (let z = -10; z > -210; z -= 10) {
+for (let z = SCENERY_START_Z; z > SCENERY_END_Z; z -= 10) {
   const treeModel = treeModels[treeIndex];
 
   loadStaticModel(treeModel, -9.5, 0, z, 0.7, 0);
@@ -359,13 +469,13 @@ for (let z = -10; z > -210; z -= 10) {
 }
 
 // PANCHINE
-for (let z = -25; z > -120; z -= 35) {
+for (let z = -25; z > SCENERY_END_Z; z -= 35) {
   loadStaticModel("/models/Bench.glb", -6.8, 0, z, 0.5, Math.PI / 2);
   loadStaticModel("/models/Bench.glb", 6.8, 0, z - 15, 0.5, -Math.PI / 2);
 }
 
 // CESTINI
-for (let z = -20; z > -120; z -= 30) {
+for (let z = -20; z > SCENERY_END_Z; z -= 30) {
   loadStaticModel("/models/Trash Can.glb", -6.5, 0, z, 1.0, 0);
   loadStaticModel("/models/Trash Can.glb", 6.5, 0, z - 10, 1.0, 0);
 }
@@ -711,6 +821,12 @@ const obstacleModels = [
   "/models/Traffic Cone.glb",
 ];
 
+for (const modelPath of [...obstacleModels, "/models/Bone.glb"]) {
+  loadModel(modelPath).catch((error) => {
+    console.error(`Errore precaricamento modello ${modelPath}:`, error);
+  });
+}
+
 let obstacleSpawnTimer = 0;
 let boneSpawnTimer = 0;
 
@@ -718,8 +834,8 @@ function spawnObstacle() {
   const laneX = lanes[Math.floor(Math.random() * lanes.length)];
   const modelPath = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
 
-  loader.load(modelPath, (gltf) => {
-    const obstacle = gltf.scene;
+  loadModel(modelPath).then((source) => {
+    const obstacle = cloneModel(source);
 
     obstacle.position.set(laneX, 0, -90);
     obstacle.scale.set(1, 1, 1);
@@ -734,6 +850,8 @@ function spawnObstacle() {
       type: "obstacle",
       hit: false,
     });
+  }).catch((error) => {
+    console.error(`Errore caricamento ostacolo ${modelPath}:`, error);
   });
 }
 
@@ -747,8 +865,10 @@ function playHitSound() {
 
 function spawnConeWall() {
   lanes.forEach((laneX) => {
-    loader.load("/models/Traffic Cone.glb", (gltf) => {
-      const cone = gltf.scene;
+    const modelPath = "/models/Traffic Cone.glb";
+
+    loadModel(modelPath).then((source) => {
+      const cone = cloneModel(source);
 
       cone.position.set(laneX, 0, -90);
       cone.scale.set(1, 1, 1);
@@ -763,6 +883,8 @@ function spawnConeWall() {
         type: "jumpObstacle",
         hit: false,
       });
+    }).catch((error) => {
+      console.error(`Errore caricamento modello ${modelPath}:`, error);
     });
   });
 }
@@ -772,8 +894,10 @@ function spawnConeWall() {
 function spawnBone() {
   const laneX = lanes[Math.floor(Math.random() * lanes.length)];
 
-  loader.load("/models/Bone.glb", (gltf) => {
-    const bone = gltf.scene;
+  const modelPath = "/models/Bone.glb";
+
+  loadModel(modelPath).then((source) => {
+    const bone = cloneModel(source);
 
     bone.position.set(laneX, 0.9, -90);
     bone.scale.set(5, 5, 5);
@@ -792,6 +916,8 @@ function spawnBone() {
       type: "bone",
       hit: false,
     });
+  }).catch((error) => {
+    console.error(`Errore caricamento modello ${modelPath}:`, error);
   });
 }
 
@@ -933,6 +1059,7 @@ function animate() {
     camera.lookAt(trex.position.x, 1.2, trex.position.z - 4);
   }
 
+  updateActiveStreetLights();
   renderer.render(scene, camera);
 }
 
