@@ -21,6 +21,10 @@ camera.position.set(0, 3, 8);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -67,27 +71,41 @@ const groundY = 0.05;
 // LUCI E CIELO
 // =======================
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.22);
+const ambientLight = new THREE.AmbientLight(0xaeb8c8, 0.18);
 scene.add(ambientLight);
 
-const moonLight = new THREE.DirectionalLight(0xbfd7ff, 0.7);
-moonLight.position.set(-25, 35, -80);
+const hemisphereLight = new THREE.HemisphereLight(0x92a8cf, 0x1a2114, 0.34);
+scene.add(hemisphereLight);
+
+const moonLightTarget = new THREE.Object3D();
+moonLightTarget.position.set(0, 0, -22);
+scene.add(moonLightTarget);
+
+const moonLight = new THREE.DirectionalLight(0xd7e7ff, 0.95);
+moonLight.position.set(-22, 28, -72);
+moonLight.target = moonLightTarget;
 moonLight.castShadow = true;
 moonLight.shadow.mapSize.width = 2048;
 moonLight.shadow.mapSize.height = 2048;
-moonLight.shadow.camera.near = 1;
-moonLight.shadow.camera.far = 150;
-moonLight.shadow.camera.left = -40;
-moonLight.shadow.camera.right = 40;
-moonLight.shadow.camera.top = 40;
-moonLight.shadow.camera.bottom = -40;
+moonLight.shadow.camera.near = 10;
+moonLight.shadow.camera.far = 125;
+moonLight.shadow.camera.left = -32;
+moonLight.shadow.camera.right = 32;
+moonLight.shadow.camera.top = 36;
+moonLight.shadow.camera.bottom = -24;
+moonLight.shadow.bias = -0.00022;
+moonLight.shadow.normalBias = 0.025;
 scene.add(moonLight);
+
+const fillLight = new THREE.DirectionalLight(0xffc88a, 0.22);
+fillLight.position.set(18, 8, 16);
+scene.add(fillLight);
 
 const moon = new THREE.Mesh(
   new THREE.SphereGeometry(3, 32, 32),
   new THREE.MeshBasicMaterial({ color: 0xddeeff })
 );
-moon.position.set(-25, 35, -80);
+moon.position.copy(moonLight.position);
 scene.add(moon);
 
 const starsGeometry = new THREE.BufferGeometry();
@@ -119,11 +137,13 @@ scene.add(stars);
 const textureLoader = new THREE.TextureLoader();
 
 const groundTexture = textureLoader.load("/textures/pavement.jpg");
+groundTexture.colorSpace = THREE.SRGBColorSpace;
 groundTexture.wrapS = THREE.RepeatWrapping;
 groundTexture.wrapT = THREE.RepeatWrapping;
 groundTexture.repeat.set(8, 40);
 
 const grassTexture = textureLoader.load("/textures/grass.png");
+grassTexture.colorSpace = THREE.SRGBColorSpace;
 grassTexture.wrapS = THREE.RepeatWrapping;
 grassTexture.wrapT = THREE.RepeatWrapping;
 grassTexture.repeat.set(20, 40);
@@ -146,11 +166,54 @@ const worldObjects = [];
 const groundPieces = [];
 const movingObjects = [];
 
+const streetLightPoolTexture = createStreetLightPoolTexture();
+const streetLightPoolGeometry = new THREE.PlaneGeometry(6.5, 6.5);
+const streetLightPoolMaterial = new THREE.MeshBasicMaterial({
+  map: streetLightPoolTexture,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  opacity: 0.42,
+});
+const streetLightBulbGeometry = new THREE.SphereGeometry(0.16, 16, 16);
+const streetLightBulbMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffddaa,
+  fog: false,
+});
+
 // =======================
 // UTILITY
 // =======================
 
 const loader = new GLTFLoader();
+
+function createStreetLightPoolTexture() {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+
+  const context = canvas.getContext("2d");
+  const gradient = context.createRadialGradient(
+    size * 0.5,
+    size * 0.5,
+    0,
+    size * 0.5,
+    size * 0.5,
+    size * 0.5
+  );
+
+  gradient.addColorStop(0, "rgba(255, 215, 150, 0.62)");
+  gradient.addColorStop(0.38, "rgba(255, 175, 90, 0.24)");
+  gradient.addColorStop(1, "rgba(255, 150, 70, 0)");
+
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
 
 function enableShadows(model) {
   model.traverse((child) => {
@@ -233,11 +296,39 @@ createGroundPiece(-125);
 // =======================
 
 function addStreetLight(x, z) {
-  const light = new THREE.PointLight(0xffaa55, 2.2, 12);
-  light.position.set(x, 3.2, z);
+  const light = new THREE.PointLight(
+    0xffb366, // colore caldo
+    3.5,      // intensità
+    20,       // distanza
+    2         // decadimento
+  );
+
+  light.position.set(x, 3.4, z);
+  light.intensity = 4.2;
+  light.castShadow = false;
 
   scene.add(light);
   worldObjects.push(light);
+
+  // lampadina visibile
+  const bulb = new THREE.Mesh(
+    streetLightBulbGeometry,
+    streetLightBulbMaterial
+  );
+
+  bulb.position.set(x, 3.4, z);
+
+  const lightPool = new THREE.Mesh(
+    streetLightPoolGeometry,
+    streetLightPoolMaterial
+  );
+  lightPool.rotation.x = -Math.PI / 2;
+  lightPool.position.set(x, 0.015, z);
+
+  scene.add(bulb);
+  scene.add(lightPool);
+  worldObjects.push(bulb);
+  worldObjects.push(lightPool);
 }
 
 // LAMPIONI
@@ -323,6 +414,8 @@ loader.load("/models/NewTRex.glb", (gltf) => {
   trex.scale.set(0.15, 0.15, 0.15);
   trex.position.set(0, 0.05, 0);
   trex.rotation.y = Math.PI;
+
+  enableShadows(trex);
 
   trex.traverse((child) => {
     if (child.isBone) {
@@ -761,6 +854,7 @@ function updateMovingObjects() {
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
