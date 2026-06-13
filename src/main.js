@@ -543,7 +543,10 @@ const LOCAL_X = new THREE.Vector3(1, 0, 0);
 const LOCAL_Y = new THREE.Vector3(0, 1, 0);
 const LOCAL_Z = new THREE.Vector3(0, 0, 1);
 const RUN_SPEED = 8.0;
+const RUN_SPEED_GAME_BOOST = 0.45;
 const TAIL_RUN_BASE_PITCH = -0.15;
+let trexRunTime = 0;
+let lastTrexAnimationTime = performance.now() * 0.001;
 
 const LEG_MOTION = {
   R: {
@@ -621,10 +624,28 @@ function animateLeg(side, phase) {
   );
 }
 
+function getRunSpeedMultiplier() {
+  const speedRange = MAX_GAME_SPEED - INITIAL_GAME_SPEED;
+  const speedProgress =
+    speedRange <= 0 ? 0 : (gameSpeed - INITIAL_GAME_SPEED) / speedRange;
+
+  return 1 + THREE.MathUtils.clamp(speedProgress, 0, 1) * RUN_SPEED_GAME_BOOST;
+}
+
+function resetTrexRunClock() {
+  trexRunTime = 0;
+  lastTrexAnimationTime = performance.now() * 0.001;
+}
+
 function animateTrex() {
   if (!trex) return;
 
-  const t = performance.now() * 0.001 * RUN_SPEED;
+  const now = performance.now() * 0.001;
+  const delta = Math.min(now - lastTrexAnimationTime, 0.05);
+  lastTrexAnimationTime = now;
+
+  trexRunTime += delta * RUN_SPEED * getRunSpeedMultiplier();
+  const t = trexRunTime;
 
   const rightPhase = t;
   const leftPhase = t + Math.PI;
@@ -710,6 +731,7 @@ function resetGame() {
     trex.position.set(0, groundY, 0);
   }
 
+  resetTrexRunClock();
   hidePauseScreen();
 
   for (let i = movingObjects.length - 1; i >= 0; i--) {
@@ -796,6 +818,7 @@ function resumeGame() {
   if (gameState !== "paused") return;
 
   hidePauseScreen();
+  lastTrexAnimationTime = performance.now() * 0.001;
   gameState = "playing";
   playGameMusic();
 }
