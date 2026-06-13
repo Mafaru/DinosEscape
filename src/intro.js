@@ -1,11 +1,11 @@
 export function startIntro(onFinish) {
   const lines = [
-    "ANNO 2147.",
-    "Dopo anni di esperimenti segreti, il dottor Elias Vorn riuscì a replicare il gene del Tyrannosaurus Rex.",
-    "Il progetto DinosEscape doveva inaugurare una nuova era della bioingegneria.",
-    "Ma durante un test notturno, il sistema di contenimento cedette.",
-    "La creatura fuggì nella città.",
-    "Ora corre tra le strade deserte. Aiutalo a sopravvivere.",
+    "YEAR 2147.",
+    "After years of secret experiments, Dr. Elias Vorn managed to replicate the Tyrannosaurus Rex gene.",
+    "The DinosEscape project was meant to open a new age of bioengineering.",
+    "But during a night test, the containment system failed.",
+    "The creature escaped into the city.",
+    "Now it runs through deserted streets. Help it survive.",
   ];
 
   let lineIndex = 0;
@@ -56,7 +56,7 @@ export function startIntro(onFinish) {
   textContainer.style.textShadow = "0 0 10px rgba(216, 130, 60, 0.45)";
 
   const hint = document.createElement("div");
-  hint.textContent = "INVIO: continua / completa frase  |  ESC: salta intro";
+  hint.textContent = "ENTER: continue / complete line  |  ESC: skip intro";
   hint.style.marginTop = "28px";
   hint.style.fontSize = "14px";
   hint.style.color = "#b47a3c";

@@ -4,7 +4,7 @@ import { startIntro } from "./intro.js";
 import { showMainMenu } from "./menu.js";
 
 // =======================
-// SCENA BASE
+// BASE SCENE
 // =======================
 
 const scene = new THREE.Scene();
@@ -32,7 +32,7 @@ document.body.style.margin = "0";
 document.body.appendChild(renderer.domElement);
 
 // =======================
-// COSTANTI DI GIOCO
+// GAME CONSTANTS
 // =======================
 
 const INITIAL_GAME_SPEED = 0.25;
@@ -55,6 +55,7 @@ let targetX = lanes[currentLane];
 let lives = 3;
 let score = 0;
 let isGameOver = false;
+let pauseOverlay = null;
 
 let isJumping = false;
 let canJump = true;
@@ -64,14 +65,13 @@ const gravity = 0.018;
 const jumpStrength = 0.32;
 const jumpCooldown = 500;
 let lastJumpObstacleScore = -9999;
-const canSpawnJumpObstacle = score - lastJumpObstacleScore > 350;
 const groundY = 0.05;
 
 // =======================
-// LUCI E CIELO
+// LIGHTS AND SKY
 // =======================
 
-const ambientLight = new THREE.AmbientLight(0xaeb8c8, 0.18);
+const ambientLight = new THREE.AmbientLight(0xaeb8c8, 0.48);
 scene.add(ambientLight);
 
 const hemisphereLight = new THREE.HemisphereLight(0x92a8cf, 0x1a2114, 0.34);
@@ -131,7 +131,7 @@ const stars = new THREE.Points(
 scene.add(stars);
 
 // =======================
-// TEXTURE E MATERIALI
+// TEXTURES AND MATERIALS
 // =======================
 
 const textureLoader = new THREE.TextureLoader();
@@ -159,7 +159,7 @@ const sideMaterial = new THREE.MeshStandardMaterial({
 });
 
 // =======================
-// ARRAY OGGETTI
+// OBJECT ARRAYS
 // =======================
 
 const worldObjects = [];
@@ -318,7 +318,7 @@ function loadStaticModel(path, x, y, z, scale = 1, rotationY = 0) {
       worldObjects.push(model);
     })
     .catch((error) => {
-      console.error(`Errore caricamento modello ${path}:`, error);
+      console.error(`Error loading model ${path}:`, error);
     });
 }
 
@@ -327,7 +327,7 @@ function checkCollision(a, b, distance = 1.2) {
 }
 
 // =======================
-// PAVIMENTO
+// GROUND
 // =======================
 
 function createGroundPiece(z) {
@@ -368,15 +368,15 @@ createGroundPiece(-25);
 createGroundPiece(-125);
 
 // =======================
-// SCENARIO
+// SCENERY
 // =======================
 
 function addStreetLight(x, z) {
   const light = new THREE.PointLight(
-    0xffb366, // colore caldo
-    3.5,      // intensità
-    20,       // distanza
-    2         // decadimento
+    0xffb366, // warm color
+    3.5, // intensity
+    20, // distance
+    2 // decay
   );
 
   light.position.set(x, STREET_LIGHT_BULB_Y, z);
@@ -388,7 +388,7 @@ function addStreetLight(x, z) {
   scene.add(light);
   worldObjects.push(light);
 
-  // lampadina visibile
+  // visible bulb
   const bulb = new THREE.Mesh(
     streetLightBulbGeometry,
     streetLightBulbMaterial
@@ -441,7 +441,7 @@ function updateActiveStreetLights() {
   }
 }
 
-// LAMPIONI
+// STREET LIGHTS
 for (let z = SCENERY_START_Z; z > SCENERY_END_Z; z -= 15) {
   loadStaticModel("/models/lamp post.glb", -6.2, 0, z, 0.2, 0);
   addStreetLight(-6.2, z);
@@ -450,7 +450,7 @@ for (let z = SCENERY_START_Z; z > SCENERY_END_Z; z -= 15) {
   addStreetLight(6.2, z);
 }
 
-// ALBERI
+// TREES
 const treeModels = [
   "/models/Tree1.glb",
   "/models/Tree2.glb",
@@ -468,19 +468,19 @@ for (let z = SCENERY_START_Z; z > SCENERY_END_Z; z -= 10) {
   treeIndex = (treeIndex + 1) % treeModels.length;
 }
 
-// PANCHINE
+// BENCHES
 for (let z = -25; z > SCENERY_END_Z; z -= 35) {
   loadStaticModel("/models/Bench.glb", -6.8, 0, z, 0.5, Math.PI / 2);
   loadStaticModel("/models/Bench.glb", 6.8, 0, z - 15, 0.5, -Math.PI / 2);
 }
 
-// CESTINI
+// TRASH CANS
 for (let z = -20; z > SCENERY_END_Z; z -= 30) {
   loadStaticModel("/models/Trash Can.glb", -6.5, 0, z, 1.0, 0);
   loadStaticModel("/models/Trash Can.glb", 6.5, 0, z - 10, 1.0, 0);
 }
 
-// EDIFICI
+// BUILDINGS
 const buildingModels = [
   "/models/Building-7lMEpT2ICD.glb",
   "/models/Building-bbH2Bg73qM.glb",
@@ -710,6 +710,8 @@ function resetGame() {
     trex.position.set(0, groundY, 0);
   }
 
+  hidePauseScreen();
+
   for (let i = movingObjects.length - 1; i >= 0; i--) {
     scene.remove(movingObjects[i].mesh);
     movingObjects.splice(i, 1);
@@ -717,6 +719,107 @@ function resetGame() {
 
   updateHud();
   gameState = "playing";
+}
+
+function showPauseScreen() {
+  if (pauseOverlay) return;
+
+  pauseOverlay = document.createElement("div");
+  pauseOverlay.id = "pause-screen";
+  pauseOverlay.style.position = "fixed";
+  pauseOverlay.style.inset = "0";
+  pauseOverlay.style.background = "rgba(0,0,0,0.62)";
+  pauseOverlay.style.zIndex = "9996";
+  pauseOverlay.style.display = "flex";
+  pauseOverlay.style.flexDirection = "column";
+  pauseOverlay.style.alignItems = "center";
+  pauseOverlay.style.justifyContent = "center";
+  pauseOverlay.style.fontFamily = "Consolas, 'Courier New', monospace";
+  pauseOverlay.style.color = "#f0c07a";
+
+  const title = document.createElement("h1");
+  title.textContent = "PAUSED";
+  title.style.fontSize = "72px";
+  title.style.letterSpacing = "6px";
+  title.style.margin = "0 0 22px";
+
+  const hint = document.createElement("div");
+  hint.textContent = "Press Esc or Resume to continue";
+  hint.style.fontSize = "20px";
+  hint.style.marginBottom = "32px";
+  hint.style.color = "#d8a35d";
+
+  const resume = createPauseButton("RESUME", resumeGame);
+  const mainMenu = createPauseButton("MAIN MENU", returnToMainMenu);
+
+  pauseOverlay.appendChild(title);
+  pauseOverlay.appendChild(hint);
+  pauseOverlay.appendChild(resume);
+  pauseOverlay.appendChild(mainMenu);
+  document.body.appendChild(pauseOverlay);
+}
+
+function createPauseButton(label, onClick) {
+  const button = document.createElement("button");
+  button.textContent = label;
+  button.style.width = "260px";
+  button.style.padding = "16px 42px";
+  button.style.border = "1px solid #d8a35d";
+  button.style.background = "rgba(18, 8, 3, 0.85)";
+  button.style.color = "#f0c07a";
+  button.style.fontSize = "22px";
+  button.style.cursor = "pointer";
+  button.style.letterSpacing = "3px";
+  button.style.marginTop = "14px";
+  button.onclick = onClick;
+  return button;
+}
+
+function hidePauseScreen() {
+  if (!pauseOverlay) return;
+
+  pauseOverlay.remove();
+  pauseOverlay = null;
+}
+
+function pauseGame() {
+  if (gameState !== "playing" || isGameOver) return;
+
+  gameState = "paused";
+  showPauseScreen();
+}
+
+function resumeGame() {
+  if (gameState !== "paused") return;
+
+  hidePauseScreen();
+  gameState = "playing";
+}
+
+function openMainMenu() {
+  gameState = "menu";
+
+  showMainMenu({
+    onStart: resetGame,
+  });
+}
+
+function returnToMainMenu() {
+  if (gameState !== "paused") return;
+
+  hidePauseScreen();
+  openMainMenu();
+}
+
+function togglePause() {
+  if (gameState === "playing") {
+    pauseGame();
+    return;
+  }
+
+  if (gameState === "paused") {
+    resumeGame();
+  }
 }
 
 
@@ -741,7 +844,7 @@ function showDeathScreen() {
   overlay.style.color = "#f0c07a";
 
   const title = document.createElement("h1");
-  title.textContent = "SEI MORTO";
+  title.textContent = "YOU DIED";
   title.style.fontSize = "76px";
   title.style.letterSpacing = "6px";
   title.style.margin = "0 0 20px";
@@ -753,7 +856,7 @@ function showDeathScreen() {
   scoreText.style.marginBottom = "36px";
 
   const retry = document.createElement("button");
-  retry.textContent = "RIPROVA";
+  retry.textContent = "TRY AGAIN";
   retry.style.padding = "16px 42px";
   retry.style.border = "1px solid #d8a35d";
   retry.style.background = "rgba(18, 8, 3, 0.85)";
@@ -779,6 +882,27 @@ function showDeathScreen() {
 window.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
 
+  if (event.key === "Escape" && !isGameOver) {
+    togglePause();
+    return;
+  }
+
+  if (gameState !== "playing") {
+    return;
+  }
+
+  if (key === "r" && isGameOver) {
+    const deathOverlay = document.getElementById("death-screen");
+    if (deathOverlay) deathOverlay.remove();
+
+    resetGame();
+    return;
+  }
+
+  if (isGameOver) {
+    return;
+  }
+
   if (event.key === "ArrowLeft" || key === "a") {
     currentLane = Math.max(0, currentLane - 1);
     targetX = lanes[currentLane];
@@ -789,18 +913,10 @@ window.addEventListener("keydown", (event) => {
     targetX = lanes[currentLane];
   }
 
-  if (key === "r" && isGameOver) {
-    const deathOverlay = document.getElementById("death-screen");
-    if (deathOverlay) deathOverlay.remove();
-
-    resetGame();
-  }
-
   if (
     (event.key === " " || key === "w" || event.key === "ArrowUp") &&
     !isJumping &&
-    canJump &&
-    !isGameOver
+    canJump
   ) {
     isJumping = true;
     canJump = false;
@@ -813,7 +929,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 // =======================
-// OSTACOLI E BONUS
+// OBSTACLES AND BONUSES
 // =======================
 
 const obstacleModels = [
@@ -823,7 +939,7 @@ const obstacleModels = [
 
 for (const modelPath of [...obstacleModels, "/models/Bone.glb"]) {
   loadModel(modelPath).catch((error) => {
-    console.error(`Errore precaricamento modello ${modelPath}:`, error);
+    console.error(`Error preloading model ${modelPath}:`, error);
   });
 }
 
@@ -851,7 +967,7 @@ function spawnObstacle() {
       hit: false,
     });
   }).catch((error) => {
-    console.error(`Errore caricamento ostacolo ${modelPath}:`, error);
+    console.error(`Error loading obstacle ${modelPath}:`, error);
   });
 }
 
@@ -884,7 +1000,7 @@ function spawnConeWall() {
         hit: false,
       });
     }).catch((error) => {
-      console.error(`Errore caricamento modello ${modelPath}:`, error);
+      console.error(`Error loading model ${modelPath}:`, error);
     });
   });
 }
@@ -917,7 +1033,7 @@ function spawnBone() {
       hit: false,
     });
   }).catch((error) => {
-    console.error(`Errore caricamento modello ${modelPath}:`, error);
+    console.error(`Error loading model ${modelPath}:`, error);
   });
 }
 
@@ -936,16 +1052,6 @@ function updateMovingObjects() {
     if (trex && !obj.hit && checkCollision(trex, obj.mesh, 1.3)) {
       obj.hit = true;
 
-      if (obj.type === "obstacle" || obj.type === "jumpObstacle") {
-        lives--;
-        playHitSound();
-      }
-
-      if (obj.type === "jumpObstacle" && !isJumping) {
-        lives--;
-        playHitSound();
-      }
-
       if (obj.type === "jumpObstacle" && isJumping) {
         continue;
       }
@@ -953,6 +1059,9 @@ function updateMovingObjects() {
       if (obj.type === "bone") {
         lives = Math.min(lives + 1, 3);
         score += 100;
+      } else {
+        lives--;
+        playHitSound();
       }
 
       scene.remove(obj.mesh);
@@ -985,7 +1094,7 @@ window.addEventListener("resize", () => {
 });
 
 // =======================
-// LOOP PRINCIPALE
+// MAIN LOOP
 // =======================
 
 function animate() {
@@ -1065,11 +1174,7 @@ function animate() {
 
 
 startIntro(() => {
-  showMainMenu({
-    onStart: () => {
-      gameState = "playing";
-    },
-  });
+  openMainMenu();
 });
 
 animate();

@@ -131,9 +131,10 @@ export function showMainMenu({ onStart, onTutorial, onStatistics }) {
     createPanel(
       "Tutorial",
       `
-      ← / A : move left<br>
-      → / D : move right<br>
-      SPACE / W / ↑ : jump<br><br>
+      Left Arrow / A : move left<br>
+      Right Arrow / D : move right<br>
+      Space / W / Up Arrow : jump<br>
+      Esc : pause / resume<br><br>
       Avoid obstacles, jump over cone walls,<br>
       collect glowing bones to recover one life.
       `
