@@ -19,7 +19,7 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(0, 3, 8);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true }); 
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -134,13 +134,9 @@ scene.add(stars);
 // TEXTURES AND MATERIALS
 // =======================
 
-// =======================
-// TEXTURES AND MATERIALS
-// =======================
-
 const textureLoader = new THREE.TextureLoader();
 
-// STRADA - sampietrini
+// Street paving
 const groundTexture = textureLoader.load(
   "/textures/brick_pavement_02_diff_4k.png"
 );
@@ -176,7 +172,7 @@ const groundMaterial = new THREE.MeshStandardMaterial({
   normalScale: new THREE.Vector2(0.8, 0.8),
 });
 
-// PRATO LATERALE
+// Side grass
 const grassTexture = textureLoader.load(
   "/textures/Grass005_2K-JPG_Color.jpg"
 );
@@ -208,7 +204,6 @@ const sideMaterial = new THREE.MeshStandardMaterial({
   map: grassTexture,
   normalMap: grassNormalTexture,
   roughnessMap: grassRoughnessTexture,
-
   roughness: 1.0,
   normalScale: new THREE.Vector2(0.5, 0.5),
 });
@@ -429,23 +424,6 @@ createGroundPiece(-125);
 // =======================
 
 function addStreetLight(x, z) {
-  const light = new THREE.PointLight(
-    0xffb366, // warm color
-    3.5, // intensity
-    20, // distance
-    2 // decay
-  );
-
-  light.position.set(x, STREET_LIGHT_BULB_Y, z);
-  light.intensity = 4.2;
-  light.castShadow = false;
-  light.intensity = 0;
-  light.visible = false;
-
-  scene.add(light);
-  worldObjects.push(light);
-
-  // visible bulb
   const bulb = new THREE.Mesh(
     streetLightBulbGeometry,
     streetLightBulbMaterial
@@ -589,7 +567,6 @@ loader.load("/models/NewTRex.glb", (gltf) => {
       trexBones[child.name] = child;
       trexRestPositions[child.name] = child.position.clone();
       trexRestQuaternions[child.name] = child.quaternion.clone();
-      console.log(child.name);
     }
   });
 
@@ -730,7 +707,7 @@ function animateTrex() {
 }
 
 
-//HUD
+// HUD
 
 const hud = document.createElement("div");
 hud.style.position = "fixed";
