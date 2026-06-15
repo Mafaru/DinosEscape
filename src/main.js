@@ -56,6 +56,7 @@ let lives = 3;
 let score = 0;
 let isGameOver = false;
 let pauseOverlay = null;
+let isDayMode = false;
 
 let isJumping = false;
 let canJump = true;
@@ -129,6 +130,45 @@ const stars = new THREE.Points(
   new THREE.PointsMaterial({ color: 0xffffff, size: 0.18 })
 );
 scene.add(stars);
+
+const LIGHTING_PRESETS = {
+  night: {
+    background: 0x050812,
+    fog: 0x050812,
+    fogNear: 35,
+    fogFar: 130,
+    exposure: 1.05,
+    ambientColor: 0xaeb8c8,
+    ambientIntensity: 0.48,
+    hemisphereSky: 0x92a8cf,
+    hemisphereGround: 0x1a2114,
+    hemisphereIntensity: 0.34,
+    keyColor: 0xd7e7ff,
+    keyIntensity: 0.95,
+    keyPosition: [-22, 28, -72],
+    fillIntensity: 0.22,
+    streetLightPoolOpacity: 0.42,
+    lampGlowIntensity: 1.35,
+  },
+  day: {
+    background: 0x8fc8ef,
+    fog: 0xb6dcf4,
+    fogNear: 45,
+    fogFar: 125,
+    exposure: 1.0,
+    ambientColor: 0xffffff,
+    ambientIntensity: 0.68,
+    hemisphereSky: 0xcfeeff,
+    hemisphereGround: 0x7d8550,
+    hemisphereIntensity: 0.78,
+    keyColor: 0xfff0c8,
+    keyIntensity: 1.35,
+    keyPosition: [-30, 42, -38],
+    fillIntensity: 0.16,
+    streetLightPoolOpacity: 0.04,
+    lampGlowIntensity: 0.0,
+  },
+};
 
 // =======================
 // TEXTURES AND MATERIALS
@@ -217,6 +257,7 @@ const groundPieces = [];
 const movingObjects = [];
 const streetLightAnchors = [];
 const activeStreetLights = [];
+const lampGlowMaterials = [];
 
 const streetLightPoolTexture = createStreetLightPoolTexture();
 const streetLightPoolGeometry = new THREE.PlaneGeometry(6.5, 6.5);
@@ -338,8 +379,11 @@ function makeLampPostGlow(model) {
       const glowingMaterial = material.clone();
       glowingMaterial.color.set(0xffddaa);
       glowingMaterial.emissive = new THREE.Color(0xffb366);
-      glowingMaterial.emissiveIntensity = 1.35;
+      glowingMaterial.emissiveIntensity = isDayMode
+        ? LIGHTING_PRESETS.day.lampGlowIntensity
+        : LIGHTING_PRESETS.night.lampGlowIntensity;
       glowingMaterial.needsUpdate = true;
+      lampGlowMaterials.push(glowingMaterial);
       return glowingMaterial;
     });
 
@@ -453,7 +497,17 @@ for (let i = 0; i < STREET_LIGHT_ACTIVE_COUNT; i++) {
   activeStreetLights.push(light);
 }
 
+applyLightingPreset();
+
 function updateActiveStreetLights() {
+  if (isDayMode) {
+    for (const light of activeStreetLights) {
+      light.visible = false;
+    }
+
+    return;
+  }
+
   const nearbyAnchors = streetLightAnchors
     .filter(
       (anchor) =>
@@ -473,6 +527,51 @@ function updateActiveStreetLights() {
 
     light.visible = true;
     light.position.copy(anchor.position);
+  }
+}
+
+function applyLightingPreset() {
+  const preset = isDayMode ? LIGHTING_PRESETS.day : LIGHTING_PRESETS.night;
+
+  scene.background.set(preset.background);
+  scene.fog.color.set(preset.fog);
+  scene.fog.near = preset.fogNear;
+  scene.fog.far = preset.fogFar;
+
+  renderer.toneMappingExposure = preset.exposure;
+
+  ambientLight.color.set(preset.ambientColor);
+  ambientLight.intensity = preset.ambientIntensity;
+
+  hemisphereLight.color.set(preset.hemisphereSky);
+  hemisphereLight.groundColor.set(preset.hemisphereGround);
+  hemisphereLight.intensity = preset.hemisphereIntensity;
+
+  moonLight.color.set(preset.keyColor);
+  moonLight.intensity = preset.keyIntensity;
+  moonLight.position.set(...preset.keyPosition);
+  moon.position.copy(moonLight.position);
+
+  fillLight.intensity = preset.fillIntensity;
+
+  moon.visible = !isDayMode;
+  stars.visible = !isDayMode;
+  streetLightPoolMaterial.opacity = preset.streetLightPoolOpacity;
+
+  for (const material of lampGlowMaterials) {
+    material.emissiveIntensity = preset.lampGlowIntensity;
+  }
+
+  updateActiveStreetLights();
+}
+
+function toggleDayMode() {
+  isDayMode = !isDayMode;
+  applyLightingPreset();
+
+  if (pauseOverlay) {
+    hidePauseScreen();
+    showPauseScreen();
   }
 }
 
@@ -808,11 +907,16 @@ function showPauseScreen() {
   hint.style.color = "#d8a35d";
 
   const resume = createPauseButton("RESUME", resumeGame);
+  const dayToggle = createPauseButton(
+    isDayMode ? "NIGHT MODE" : "DAY MODE",
+    toggleDayMode
+  );
   const mainMenu = createPauseButton("MAIN MENU", returnToMainMenu);
 
   pauseOverlay.appendChild(title);
   pauseOverlay.appendChild(hint);
   pauseOverlay.appendChild(resume);
+  pauseOverlay.appendChild(dayToggle);
   pauseOverlay.appendChild(mainMenu);
   document.body.appendChild(pauseOverlay);
 }
